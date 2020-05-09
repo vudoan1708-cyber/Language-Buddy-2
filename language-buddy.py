@@ -61,13 +61,15 @@ chunk_size = 2048
 # SPEECH RECOGNITION
 # initialise recogniser
 r = sr.Recognizer()
-
+r1 = sr.Recognizer()
 global result
 result = None
 
+root = tk.Tk()
+
 def chooseDestLanguage():
-    # chooseDestL_label = tk.Label(root, text="Speak Your Desired Destination Language", bg='gray')
-    # chooseDestL_label.pack()
+    chooseDestL_label = tk.Label(root, text="Speak Your Desired Destination Language", bg='gray')
+    chooseDestL_label.pack()
     print("Speak Your Desired Destination Language")
 
     with sr.Microphone(sample_rate = sample_rate,  
@@ -109,9 +111,9 @@ def chooseDestLanguage():
             elif 'hun' in destL:
                 destL = 'hu'
                 print(destL)
-            # else:
-            #     warning_label = tk.Label(root, text="Apparently, we don't know that language yet", bg='gray')
-            #     warning_label.pack()
+            else:
+                warning_label = tk.Label(root, text="Apparently, we don't know that language yet", bg='gray')
+                warning_label.pack()
             # call the function to do web scraping on Google Translate
             # googleTranslate()
             # call the function to do image-to-text analysis
@@ -129,7 +131,7 @@ heightImg = 540
 webcamFeed = True
 path_to_imgFile =  'media/img/myImage.png'
 # initialise the system workflow with live camera
-def init(): 
+def init():
     while True:
         if webcamFeed:
             _, frame = cap.read()
@@ -150,7 +152,7 @@ def init():
         cv.drawContours(imgContour, contours, -1, (0, 255, 0), 10)
 
         # find the biggest contour
-        # global biggest, imgWarpColored, img_show
+        global biggest, imgWarpColored, img_show
         biggest, _ = utlis.biggestContour(contours)
         if biggest.size != 0:
             # reorder the list of the biggest resolution
@@ -179,16 +181,30 @@ def init():
         # either show the biggest contour found in a frame
         # or just show the live video as usual
         cv.imshow('Live Webcam', img_show)
+
+        if cv.waitKey(1) & 0xFF == ord('s'):
+            saveLabel = tk.Label(root, text='A Frame Saved', bg='gray')
+            saveLabel.pack()
+            if biggest.size != 0:
+                cv.imwrite(path_to_imgFile, imgWarpColored)
+            else:
+                cv.imwrite(path_to_imgFile, img_show)
+            cv.waitKey(300)
+            break
+        
+        
+    cap.release()
+    cv.destroyAllWindows()
+
+def imageCaptured():
+    while True:
         if cv.waitKey(1) & 0xFF == ord('s'):
             if biggest.size != 0:
                 cv.imwrite(path_to_imgFile, imgWarpColored)
             else:
                 cv.imwrite(path_to_imgFile, img_show)
             cv.waitKey(300)
-            chooseDestLanguage()
-            # break
-    cap.release()
-    cv.destroyAllWindows()
+            break
 
 # remember to add the json file to the environment PATH before running this code file
 def translateText(text):
@@ -238,21 +254,60 @@ def listenTrans():
         os.system(f'start {path_to_audioFile}')
     else:
         print('You Need To Specify The Source Language First')
-        
-# TKINTER
-root = tk.Tk()
 
+def speakCommand():
+    with sr.Microphone(sample_rate = sample_rate,  
+                    chunk_size = chunk_size) as source:
+        # r.adjust_for_ambient_noise(source)
+        audio = r1.listen(source)
+        try:
+            global SpeakCmd
+            SpeakCmd = r1.recognize_google(audio)
+            if 'start' in SpeakCmd:
+                print(SpeakCmd)
+                init()
+            elif 'init' in SpeakCmd:
+                print(SpeakCmd)
+                init()
+
+            if 'source' in SpeakCmd:
+                print(SpeakCmd)
+                listenOrg()
+            elif 'origin' in SpeakCmd:
+                print(SpeakCmd)
+                listenOrg()
+
+            if 'dest'  in SpeakCmd:
+                print(SpeakCmd)
+                listenTrans()
+            elif 'target'  in SpeakCmd:
+                print(SpeakCmd)
+                listenTrans()
+
+            if 'choose' in SpeakCmd:
+                print(SpeakCmd)
+                chooseDestLanguage()
+            elif 'select' in SpeakCmd:
+                print(SpeakCmd)
+                chooseDestLanguage()
+        except sr.UnknownValueError:
+            print("Could not understand audio")
+        except sr.RequestError as e:
+            print("Could not request results; {0}".format(e))
+            
+
+# TKINTER
 canvas = tk.Canvas(root, bg='white')
 canvas.place(relwidth=0.8, relheight=0.8, relx=0.1, rely=0.1)
 
 # webcamBtn = tk.Button(root, text='Open Live Webcam', padx=20, pady=10, fg='white', bg='black', command=liveVideoCapture)
 # webcamBtn.pack()
 
-# imageRecognitionBtn = tk.Button(root, text='PyTesseract', padx=20, pady=10, fg='white', bg='black', command=analyseImg)
-# imageRecognitionBtn.pack()
-
-speakBtn = tk.Button(root, text='Speak Your Desired Destination Language', padx=20, pady=10, fg='white', bg='black', command=chooseDestLanguage)
+speakBtn = tk.Button(root, text='Speak Command', padx=20, pady=10, fg='white', bg='black', command=speakCommand)
 speakBtn.pack()
+
+chooseDestLBtn = tk.Button(root, text='Speak a Desired Destination Language', padx=20, pady=10, fg='white', bg='black', command=chooseDestLanguage)
+chooseDestLBtn.pack()
 
 listenOrgBtn = tk.Button(root, text='Listen to The Original Text', padx=20, pady=10, fg='white', bg='red', command=listenOrg)
 listenOrgBtn.pack()
@@ -260,13 +315,14 @@ listenOrgBtn.pack()
 listenTransBtn = tk.Button(root, text='Listen to The Translated Text', padx=20, pady=10, fg='white', bg='red', command=listenTrans)
 listenTransBtn.pack()
 
-resetBtn = tk.Button(root, text='Reset', padx=20, pady=10, fg='white', bg='red', command=init)
-resetBtn.pack()
+initBtn = tk.Button(root, text='Initialise', padx=20, pady=10, fg='white', bg='red', command=init)
+initBtn.pack()
 
 root.mainloop()
 
 ################################################################################
-    # automatically initialises live webcam
+
+    # waits for a triggering event to initialise live webcam
     # then waits for a button press for a still img captured from live video webcam
     # then immediately asks users to speak a desired destination language once the above condition is satisfied
     # this feature can either be triggered by a button OR by following this workflow
