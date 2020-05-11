@@ -17,13 +17,10 @@ import speech_recognition as sr
 import cv2 as cv
 import numpy as np
 import utlis
-# import selenium for web scraping in order to automate the translation on Google Translate
-# import selenium
-# from selenium import webdriver
-# # import webdriverwait for wait time
-# from selenium.webdriver.support.ui import WebDriverWait
-# # import keys for any keyboard triggering
-# from selenium.webdriver.common.keys import Keys
+
+# import pyautogui for key, mouse event controller automation
+import pyautogui
+
 # import time for prgramme sleep time
 import time
 
@@ -46,16 +43,12 @@ langs_tesseract = 'vie+eng+kor+chi_sim+fra+afr+fin+ita+jpn+hun+spa'
 # specifying languages to be used for google engine (GTTS, Google Translate)
 langs_gg = 'vi+en+ko+zh+fr'
 
-# set the path to the chrom driver executables file
-# link to download: https://sites.google.com/a/chromium.org/chromedriver/downloads
-# PATH = 'C:\Program Files (x86)\chromedriver.exe'
-
-#Sample rate is how often values are recorded 
+# Sample rate is how often values are recorded 
 sample_rate = 48000
 
-#Chunk is like a buffer. It stores 2048 samples (bytes of data) 
-#here.  
-#it is advisable to use powers of 2 such as 1024 or 2048 
+# Chunk is like a buffer. It stores 2048 samples (bytes of data) 
+# here.  
+# it is advisable to use powers of 2 such as 1024 or 2048 
 chunk_size = 2048
 
 # SPEECH RECOGNITION
@@ -67,6 +60,9 @@ result = None
 
 root = tk.Tk()
 
+# keep track of each mode in the system workflow
+mode = 0
+
 def chooseDestLanguage():
     chooseDestL_label = tk.Label(root, text="Speak Your Desired Destination Language", bg='gray')
     chooseDestL_label.pack()
@@ -74,7 +70,8 @@ def chooseDestLanguage():
 
     with sr.Microphone(sample_rate = sample_rate,  
                         chunk_size = chunk_size) as source:
-        # r.adjust_for_ambient_noise(source)
+        r.pause_threshold = 1
+        r.adjust_for_ambient_noise(source, duration=1)
         audio = r.listen(source)
         try:
             global destL
@@ -132,69 +129,71 @@ webcamFeed = True
 path_to_imgFile =  'media/img/myImage.png'
 # initialise the system workflow with live camera
 def init():
-    while True:
-        if webcamFeed:
-            _, frame = cap.read()
-        else:
-            frame = cv.imread(path_to_imgFile)
-        frame = cv.resize(frame, (widthImg, heightImg))
-        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-        bilateral = cv.bilateralFilter(gray, 5, 12, 12)
-        canny = cv.Canny(bilateral, 100, 200)
-
-        kernel = np.ones((5, 5))
-        dilate = cv.dilate(canny, kernel, iterations=2)
-        erode = cv.erode(dilate, kernel, iterations=1)
-
-        imgContour = frame.copy()
-        imgBigContour = frame.copy()
-        contours, _ = cv.findContours(erode, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
-        cv.drawContours(imgContour, contours, -1, (0, 255, 0), 10)
-
-        # find the biggest contour
-        global biggest, imgWarpColored, img_show
-        biggest, _ = utlis.biggestContour(contours)
-        if biggest.size != 0:
-            # reorder the list of the biggest resolution
-            biggest = utlis.reorder(biggest)
-            cv.drawContours(imgBigContour, biggest, -1, (0, 255, 0), 20)
-            imgBigContour = utlis.drawRectangle(imgBigContour, biggest, 2)
-
-            # warp perspective
-            pts1 = np.float32(biggest)
-            pts2 = np.float32([[0, 0], [widthImg, 0], [0, heightImg], [widthImg, heightImg]])
-            matrix = cv.getPerspectiveTransform(pts1, pts2)
-            imgWarpColored = cv.warpPerspective(frame, matrix, (widthImg, heightImg))
-
-            # remove 20px from each side
-            # grayscale the warped img
-            imgWarpGray = cv.cvtColor(imgWarpColored, cv.COLOR_BGR2GRAY)
-            imgAdaptiveThre = cv.adaptiveThreshold(imgWarpGray, 255, 1, 1, 7, 2)
-            imgAdaptiveThre = cv.bitwise_not(imgAdaptiveThre)
-            imgAdaptiveThre = cv.medianBlur(imgAdaptiveThre, 3)
-
-            # show the biggest contour found in a live video
-            img_show = imgBigContour
-        else:
-            img_show = frame
-
-        # either show the biggest contour found in a frame
-        # or just show the live video as usual
-        cv.imshow('Live Webcam', img_show)
-
-        if cv.waitKey(1) & 0xFF == ord('s'):
-            saveLabel = tk.Label(root, text='A Frame Saved', bg='gray')
-            saveLabel.pack()
-            if biggest.size != 0:
-                cv.imwrite(path_to_imgFile, imgWarpColored)
+    try:
+        while True:
+            if webcamFeed:
+                _, frame = cap.read()
             else:
-                cv.imwrite(path_to_imgFile, img_show)
-            cv.waitKey(300)
-            break
+                frame = cv.imread(path_to_imgFile)
+            frame = cv.resize(frame, (widthImg, heightImg))
+            gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+            bilateral = cv.bilateralFilter(gray, 5, 12, 12)
+            canny = cv.Canny(bilateral, 100, 200)
+
+            kernel = np.ones((5, 5))
+            dilate = cv.dilate(canny, kernel, iterations=2)
+            erode = cv.erode(dilate, kernel, iterations=1)
+
+            imgContour = frame.copy()
+            imgBigContour = frame.copy()
+            contours, _ = cv.findContours(erode, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+            cv.drawContours(imgContour, contours, -1, (0, 255, 0), 10)
+
+            # find the biggest contour
+            global biggest, imgWarpColored, img_show
+            biggest, _ = utlis.biggestContour(contours)
+            if biggest.size != 0:
+                # reorder the list of the biggest resolution
+                biggest = utlis.reorder(biggest)
+                cv.drawContours(imgBigContour, biggest, -1, (0, 255, 0), 20)
+                imgBigContour = utlis.drawRectangle(imgBigContour, biggest, 2)
+
+                # warp perspective
+                pts1 = np.float32(biggest)
+                pts2 = np.float32([[0, 0], [widthImg, 0], [0, heightImg], [widthImg, heightImg]])
+                matrix = cv.getPerspectiveTransform(pts1, pts2)
+                imgWarpColored = cv.warpPerspective(frame, matrix, (widthImg, heightImg))
+
+                # remove 20px from each side
+                # grayscale the warped img
+                imgWarpGray = cv.cvtColor(imgWarpColored, cv.COLOR_BGR2GRAY)
+                imgAdaptiveThre = cv.adaptiveThreshold(imgWarpGray, 255, 1, 1, 7, 2)
+                imgAdaptiveThre = cv.bitwise_not(imgAdaptiveThre)
+                imgAdaptiveThre = cv.medianBlur(imgAdaptiveThre, 3)
+
+                # show the biggest contour found in a live video
+                img_show = imgBigContour
+            else:
+                img_show = frame
+
+            # either show the biggest contour found in a frame
+            # or just show the live video as usual
+            cv.imshow('Live Webcam', img_show)
+
+            if cv.waitKey(1) & 0xFF == ord('s'):
+                saveLabel = tk.Label(root, text='A Frame Saved' + '\n' + 'You Now Have Two Options: Choose A Destination Language' 
+                                    + '\n' + 'or Ask Me To Perform Object Detection', bg='gray')
+                saveLabel.pack()
+                if biggest.size != 0:
+                    cv.imwrite(path_to_imgFile, imgWarpColored)
+                else:
+                    cv.imwrite(path_to_imgFile, img_show)
+                cv.waitKey(300)
+                break
         
-        
-    cap.release()
-    cv.destroyAllWindows()
+    except KeyboardInterrupt:    
+        cap.release()
+        cv.destroyAllWindows()
 
 def imageCaptured():
     while True:
@@ -215,6 +214,10 @@ def translateText(text):
     print('Text: ', result['input'])
     print('Translation: ', result['translatedText'])
     print('Detected Source Lang: ', result['detectedSourceLanguage'])
+
+    global mode
+    mode = 0
+    print(mode)
 
 def analyseImg():
     # for prototyping
@@ -255,41 +258,108 @@ def listenTrans():
     else:
         print('You Need To Specify The Source Language First')
 
+def imageDetection():
+    os.startfile('media\img')
+    time.sleep(0.75)
+    # locate the img
+    pyautogui.typewrite(['down', 'down', 'enter'])
+    time.sleep(0.75)
+
+    # google image search
+    pyautogui.click(960, 640, button='right')
+    pyautogui.typewrite(['down', 'down', 'down', 'down', 'down', 'enter'])
+    
+    time.sleep(8.25)
+    im = pyautogui.screenshot(region=(440, 429, 331, 42))
+    im.save(path_to_imgFile)
+
+    # add label
+    chooseDestL_label = tk.Label(root, text="Now, Choose A Destination Language", bg='gray')
+    chooseDestL_label.pack()
+
 def speakCommand():
     with sr.Microphone(sample_rate = sample_rate,  
                     chunk_size = chunk_size) as source:
-        # r.adjust_for_ambient_noise(source)
+        r.pause_threshold = 1
+        r.adjust_for_ambient_noise(source, duration=1)
         audio = r1.listen(source)
         try:
-            global SpeakCmd
             SpeakCmd = r1.recognize_google(audio)
+            # voice command for initiating live camera
             if 'start' in SpeakCmd:
-                print(SpeakCmd)
-                init()
+                if 'cam' in SpeakCmd:
+                    print(SpeakCmd)
+                    global mode
+                    mode = 1
+                    print(mode)
+                    init()
+                elif 'video' in SpeakCmd:
+                    print(SpeakCmd)
+                    mode = 1
+                    init()
             elif 'init' in SpeakCmd:
-                print(SpeakCmd)
-                init()
+                if 'cam' in SpeakCmd: 
+                    print(SpeakCmd)
+                    mode = 1
+                    init()
+                elif 'video' in SpeakCmd:
+                    print(SpeakCmd)
+                    mode = 1
+                    init()
+            
+            # voice command for object detection
+            if 'detect' in SpeakCmd:
+                mode = 2
+                imageDetection()
+            elif 'image' in SpeakCmd:
+                mode = 2
+                imageDetection()
+            
+            if mode == 1:
+                # voice command to listen to the original text
+                if 'listen' in SpeakCmd:
+                    if 'source' in SpeakCmd:
+                        print(SpeakCmd)
+                        listenOrg()
+                    elif 'origin' in SpeakCmd:
+                        print(SpeakCmd)
+                        listenOrg()
 
-            if 'source' in SpeakCmd:
-                print(SpeakCmd)
-                listenOrg()
-            elif 'origin' in SpeakCmd:
-                print(SpeakCmd)
-                listenOrg()
-
-            if 'dest'  in SpeakCmd:
-                print(SpeakCmd)
-                listenTrans()
-            elif 'target'  in SpeakCmd:
-                print(SpeakCmd)
-                listenTrans()
-
-            if 'choose' in SpeakCmd:
-                print(SpeakCmd)
-                chooseDestLanguage()
-            elif 'select' in SpeakCmd:
-                print(SpeakCmd)
-                chooseDestLanguage()
+                # voice command to listen to the translated text
+                if 'listen' in SpeakCmd:
+                    if 'dest'  in SpeakCmd:
+                        print(SpeakCmd)
+                        listenTrans()
+                    elif 'target'  in SpeakCmd:
+                        print(SpeakCmd)
+                        listenTrans()
+                    elif 'translate' in SpeakCmd:
+                        print(SpeakCmd)
+                        listenTrans()
+            
+            if mode == 1 or mode == 2:
+                # voice command to choose a desired destination language
+                if 'choose' in SpeakCmd:
+                    if 'dest'  in SpeakCmd:
+                        print(SpeakCmd)
+                        chooseDestLanguage()
+                    if 'lang' in SpeakCmd:
+                        print(SpeakCmd)
+                        chooseDestLanguage()
+                elif 'select' in SpeakCmd:
+                    if 'dest'  in SpeakCmd:
+                        print(SpeakCmd)
+                        chooseDestLanguage()
+                    if 'lang' in SpeakCmd:
+                        print(SpeakCmd)
+                        chooseDestLanguage()
+                elif 'say' in SpeakCmd:
+                    if 'dest'  in SpeakCmd:
+                        print(SpeakCmd)
+                        chooseDestLanguage()
+                    if 'lang' in SpeakCmd:
+                        print(SpeakCmd)
+                        chooseDestLanguage()
         except sr.UnknownValueError:
             print("Could not understand audio")
         except sr.RequestError as e:
