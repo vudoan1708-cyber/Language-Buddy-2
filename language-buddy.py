@@ -120,80 +120,83 @@ def chooseDestLanguage():
         except sr.RequestError as e:
             print("Could not request results; {0}".format(e))
 
-
 # initialise OPENCV live video webcam
 cap = cv.VideoCapture(0)
 widthImg = 960
 heightImg = 540
 webcamFeed = True
-path_to_imgFile =  'media/img/myImage.png'
+path_to_imgFile =  'media/img/still_img_captured/myImage.png'
+path_for_img_detection = 'media/img/img_detection/myImage.png'
+
 # initialise the system workflow with live camera
 def init():
-    try:
-        while True:
-            if webcamFeed:
-                _, frame = cap.read()
-            else:
-                frame = cv.imread(path_to_imgFile)
-            frame = cv.resize(frame, (widthImg, heightImg))
-            gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-            bilateral = cv.bilateralFilter(gray, 5, 12, 12)
-            canny = cv.Canny(bilateral, 100, 200)
+# try:
+    while True:
+        if webcamFeed:
+            _, frame = cap.read()
+        else:
+            frame = cv.imread(path_to_imgFile)
+        frame = cv.resize(frame, (widthImg, heightImg))
+        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+        bilateral = cv.bilateralFilter(gray, 5, 12, 12)
+        canny = cv.Canny(bilateral, 100, 200)
 
-            kernel = np.ones((5, 5))
-            dilate = cv.dilate(canny, kernel, iterations=2)
-            erode = cv.erode(dilate, kernel, iterations=1)
+        kernel = np.ones((5, 5))
+        dilate = cv.dilate(canny, kernel, iterations=2)
+        erode = cv.erode(dilate, kernel, iterations=1)
 
-            imgContour = frame.copy()
-            imgBigContour = frame.copy()
-            contours, _ = cv.findContours(erode, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
-            cv.drawContours(imgContour, contours, -1, (0, 255, 0), 10)
+        imgContour = frame.copy()
+        imgBigContour = frame.copy()
+        contours, _ = cv.findContours(erode, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+        cv.drawContours(imgContour, contours, -1, (0, 255, 0), 10)
 
-            # find the biggest contour
-            global biggest, imgWarpColored, img_show
-            biggest, _ = utlis.biggestContour(contours)
+        # find the biggest contour
+        global biggest, imgWarpColored, img_show
+        biggest, _ = utlis.biggestContour(contours)
+        if biggest.size != 0:
+            # reorder the list of the biggest resolution
+            biggest = utlis.reorder(biggest)
+            cv.drawContours(imgBigContour, biggest, -1, (0, 255, 0), 20)
+            imgBigContour = utlis.drawRectangle(imgBigContour, biggest, 2)
+
+            # warp perspective
+            pts1 = np.float32(biggest)
+            pts2 = np.float32([[0, 0], [widthImg, 0], [0, heightImg], [widthImg, heightImg]])
+            matrix = cv.getPerspectiveTransform(pts1, pts2)
+            imgWarpColored = cv.warpPerspective(frame, matrix, (widthImg, heightImg))
+
+            # remove 20px from each side
+            # grayscale the warped img
+            imgWarpGray = cv.cvtColor(imgWarpColored, cv.COLOR_BGR2GRAY)
+            imgAdaptiveThre = cv.adaptiveThreshold(imgWarpGray, 255, 1, 1, 7, 2)
+            imgAdaptiveThre = cv.bitwise_not(imgAdaptiveThre)
+            imgAdaptiveThre = cv.medianBlur(imgAdaptiveThre, 3)
+
+            # show the biggest contour found in a live video
+            img_show = imgBigContour
+        else:
+            img_show = frame
+
+        # either show the biggest contour found in a frame
+        # or just show the live video as usual
+        cv.imshow('Live Webcam', img_show)
+
+        if cv.waitKey(1) & 0xFF == ord('s'):
+            saveLabel = tk.Label(root, text='A Frame Saved' + '\n' + 'You Now Have Two Options: Choose A Destination Language' 
+                                + '\n' + 'or Ask Me To Perform Object Detection', bg='gray')
+            saveLabel.pack()
             if biggest.size != 0:
-                # reorder the list of the biggest resolution
-                biggest = utlis.reorder(biggest)
-                cv.drawContours(imgBigContour, biggest, -1, (0, 255, 0), 20)
-                imgBigContour = utlis.drawRectangle(imgBigContour, biggest, 2)
-
-                # warp perspective
-                pts1 = np.float32(biggest)
-                pts2 = np.float32([[0, 0], [widthImg, 0], [0, heightImg], [widthImg, heightImg]])
-                matrix = cv.getPerspectiveTransform(pts1, pts2)
-                imgWarpColored = cv.warpPerspective(frame, matrix, (widthImg, heightImg))
-
-                # remove 20px from each side
-                # grayscale the warped img
-                imgWarpGray = cv.cvtColor(imgWarpColored, cv.COLOR_BGR2GRAY)
-                imgAdaptiveThre = cv.adaptiveThreshold(imgWarpGray, 255, 1, 1, 7, 2)
-                imgAdaptiveThre = cv.bitwise_not(imgAdaptiveThre)
-                imgAdaptiveThre = cv.medianBlur(imgAdaptiveThre, 3)
-
-                # show the biggest contour found in a live video
-                img_show = imgBigContour
+                cv.imwrite(path_to_imgFile, imgWarpColored)
             else:
-                img_show = frame
-
-            # either show the biggest contour found in a frame
-            # or just show the live video as usual
-            cv.imshow('Live Webcam', img_show)
-
-            if cv.waitKey(1) & 0xFF == ord('s'):
-                saveLabel = tk.Label(root, text='A Frame Saved' + '\n' + 'You Now Have Two Options: Choose A Destination Language' 
-                                    + '\n' + 'or Ask Me To Perform Object Detection', bg='gray')
-                saveLabel.pack()
-                if biggest.size != 0:
-                    cv.imwrite(path_to_imgFile, imgWarpColored)
-                else:
-                    cv.imwrite(path_to_imgFile, img_show)
-                cv.waitKey(300)
-                break
-        
-    except KeyboardInterrupt:    
-        cap.release()
-        cv.destroyAllWindows()
+                cv.imwrite(path_to_imgFile, img_show)
+            cv.waitKey(300)
+            break
+        elif cv.waitKey(1) & 0xFF == ord('q'):
+            break
+    
+# except KeyboardInterrupt:    
+    cap.release()
+    cv.destroyAllWindows()
 
 def imageCaptured():
     while True:
@@ -222,7 +225,9 @@ def translateText(text):
 def analyseImg():
     # for prototyping
     # testing the accuracy in image-to-text analysis between grayscaled img and coloured img 
-    img = cv.imread(path_to_imgFile)
+    if mode == 1:
+        img = cv.imread(path_to_imgFile)
+    else: img = cv.imread(path_for_img_detection)
     # img = Image.open('media/img/korean.jpg')
     gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
     bilateral = cv.bilateralFilter(gray, 5, 12, 12)
@@ -259,23 +264,25 @@ def listenTrans():
         print('You Need To Specify The Source Language First')
 
 def imageDetection():
-    os.startfile('media\img')
+    os.startfile('media\img\still_img_captured')
     time.sleep(0.75)
     # locate the img
-    pyautogui.typewrite(['down', 'down', 'enter'])
+    pyautogui.typewrite(['down', 'enter'])
     time.sleep(0.75)
 
     # google image search
     pyautogui.click(960, 640, button='right')
     pyautogui.typewrite(['down', 'down', 'down', 'down', 'down', 'enter'])
     
-    time.sleep(8.25)
+    # wait for webpage buffering
+    time.sleep(8)
     im = pyautogui.screenshot(region=(440, 429, 331, 42))
-    im.save(path_to_imgFile)
+    im.save(path_for_img_detection)
 
     # add label
     chooseDestL_label = tk.Label(root, text="Now, Choose A Destination Language", bg='gray')
     chooseDestL_label.pack()
+    # chooseDestLanguage()
 
 def speakCommand():
     with sr.Microphone(sample_rate = sample_rate,  
