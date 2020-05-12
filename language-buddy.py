@@ -130,73 +130,76 @@ path_for_img_detection = 'media/img/img_detection/myImage.png'
 
 # initialise the system workflow with live camera
 def init():
-# try:
-    while True:
-        if webcamFeed:
-            _, frame = cap.read()
-        else:
-            frame = cv.imread(path_to_imgFile)
-        frame = cv.resize(frame, (widthImg, heightImg))
-        gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-        bilateral = cv.bilateralFilter(gray, 5, 12, 12)
-        canny = cv.Canny(bilateral, 100, 200)
-
-        kernel = np.ones((5, 5))
-        dilate = cv.dilate(canny, kernel, iterations=2)
-        erode = cv.erode(dilate, kernel, iterations=1)
-
-        imgContour = frame.copy()
-        imgBigContour = frame.copy()
-        contours, _ = cv.findContours(erode, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
-        cv.drawContours(imgContour, contours, -1, (0, 255, 0), 10)
-
-        # find the biggest contour
-        global biggest, imgWarpColored, img_show
-        biggest, _ = utlis.biggestContour(contours)
-        if biggest.size != 0:
-            # reorder the list of the biggest resolution
-            biggest = utlis.reorder(biggest)
-            cv.drawContours(imgBigContour, biggest, -1, (0, 255, 0), 20)
-            imgBigContour = utlis.drawRectangle(imgBigContour, biggest, 2)
-
-            # warp perspective
-            pts1 = np.float32(biggest)
-            pts2 = np.float32([[0, 0], [widthImg, 0], [0, heightImg], [widthImg, heightImg]])
-            matrix = cv.getPerspectiveTransform(pts1, pts2)
-            imgWarpColored = cv.warpPerspective(frame, matrix, (widthImg, heightImg))
-
-            # remove 20px from each side
-            # grayscale the warped img
-            imgWarpGray = cv.cvtColor(imgWarpColored, cv.COLOR_BGR2GRAY)
-            imgAdaptiveThre = cv.adaptiveThreshold(imgWarpGray, 255, 1, 1, 7, 2)
-            imgAdaptiveThre = cv.bitwise_not(imgAdaptiveThre)
-            imgAdaptiveThre = cv.medianBlur(imgAdaptiveThre, 3)
-
-            # show the biggest contour found in a live video
-            img_show = imgBigContour
-        else:
-            img_show = frame
-
-        # either show the biggest contour found in a frame
-        # or just show the live video as usual
-        cv.imshow('Live Webcam', img_show)
-
-        if cv.waitKey(1) & 0xFF == ord('s'):
-            saveLabel = tk.Label(root, text='A Frame Saved' + '\n' + 'You Now Have Two Options: Choose A Destination Language' 
-                                + '\n' + 'or Ask Me To Perform Object Detection', bg='gray')
-            saveLabel.pack()
-            if biggest.size != 0:
-                cv.imwrite(path_to_imgFile, imgWarpColored)
+    try:
+        while True:
+            if webcamFeed:
+                _, frame = cap.read()
             else:
-                cv.imwrite(path_to_imgFile, img_show)
-            cv.waitKey(300)
-            break
-        elif cv.waitKey(1) & 0xFF == ord('q'):
-            break
-    
-# except KeyboardInterrupt:    
-    cap.release()
-    cv.destroyAllWindows()
+                frame = cv.imread(path_to_imgFile)
+            frame = cv.resize(frame, (widthImg, heightImg))
+            gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+            bilateral = cv.bilateralFilter(gray, 5, 12, 12)
+            canny = cv.Canny(bilateral, 100, 200)
+
+            kernel = np.ones((5, 5))
+            dilate = cv.dilate(canny, kernel, iterations=2)
+            erode = cv.erode(dilate, kernel, iterations=1)
+
+            imgContour = frame.copy()
+            imgBigContour = frame.copy()
+            contours, _ = cv.findContours(erode, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+            cv.drawContours(imgContour, contours, -1, (0, 255, 0), 10)
+
+            # find the biggest contour
+            global biggest, imgWarpColored, img_show
+            biggest, _ = utlis.biggestContour(contours)
+            if biggest.size != 0:
+                # reorder the list of the biggest resolution
+                biggest = utlis.reorder(biggest)
+                cv.drawContours(imgBigContour, biggest, -1, (0, 255, 0), 20)
+                imgBigContour = utlis.drawRectangle(imgBigContour, biggest, 2)
+
+                # warp perspective
+                pts1 = np.float32(biggest)
+                pts2 = np.float32([[0, 0], [widthImg, 0], [0, heightImg], [widthImg, heightImg]])
+                matrix = cv.getPerspectiveTransform(pts1, pts2)
+                imgWarpColored = cv.warpPerspective(frame, matrix, (widthImg, heightImg))
+
+                # remove 20px from each side
+                # grayscale the warped img
+                imgWarpGray = cv.cvtColor(imgWarpColored, cv.COLOR_BGR2GRAY)
+                imgAdaptiveThre = cv.adaptiveThreshold(imgWarpGray, 255, 1, 1, 7, 2)
+                imgAdaptiveThre = cv.bitwise_not(imgAdaptiveThre)
+                imgAdaptiveThre = cv.medianBlur(imgAdaptiveThre, 3)
+
+                # show the biggest contour found in a live video
+                img_show = imgBigContour
+            else:
+                img_show = frame
+
+            # either show the biggest contour found in a frame
+            # or just show the live video as usual
+            cv.imshow('Live Webcam', img_show)
+
+            if cv.waitKey(1) & 0xFF == ord('s'):
+                saveLabel = tk.Label(root, text='A Frame Saved' + '\n' + 'You Now Have Two Options: Choose A Destination Language' 
+                                    + '\n' + 'or Ask Me To Perform Object Detection', bg='gray')
+                saveLabel.pack()
+                if biggest.size != 0:
+                    cv.imwrite(path_to_imgFile, imgWarpColored)
+                else:
+                    cv.imwrite(path_to_imgFile, img_show)
+                cv.waitKey(300)
+                # to close the webcam/camera windows
+                # pyautogui.click(1360, 141, button='left')
+                pyautogui.keyDown('altleft'); pyautogui.press('f4'); pyautogui.keyUp('altleft')
+                break
+            elif cv.waitKey(1) & 0xFF == ord('q'):
+                break
+        
+    except KeyboardInterrupt:    
+        cap.release()
+        cv.destroyAllWindows()
 
 def imageCaptured():
     while True:
@@ -332,17 +335,17 @@ def speakCommand():
                         print(SpeakCmd)
                         listenOrg()
 
-                # voice command to listen to the translated text
-                if 'listen' in SpeakCmd:
-                    if 'dest'  in SpeakCmd:
-                        print(SpeakCmd)
-                        listenTrans()
-                    elif 'target'  in SpeakCmd:
-                        print(SpeakCmd)
-                        listenTrans()
-                    elif 'translate' in SpeakCmd:
-                        print(SpeakCmd)
-                        listenTrans()
+            # voice command to listen to the translated text
+            if 'listen' in SpeakCmd:
+                if 'dest'  in SpeakCmd:
+                    print(SpeakCmd)
+                    listenTrans()
+                elif 'target'  in SpeakCmd:
+                    print(SpeakCmd)
+                    listenTrans()
+                elif 'translate' in SpeakCmd:
+                    print(SpeakCmd)
+                    listenTrans()
             
             if mode == 1 or mode == 2:
                 # voice command to choose a desired destination language
@@ -350,21 +353,21 @@ def speakCommand():
                     if 'dest'  in SpeakCmd:
                         print(SpeakCmd)
                         chooseDestLanguage()
-                    if 'lang' in SpeakCmd:
+                    elif 'lang' in SpeakCmd:
                         print(SpeakCmd)
                         chooseDestLanguage()
                 elif 'select' in SpeakCmd:
                     if 'dest'  in SpeakCmd:
                         print(SpeakCmd)
                         chooseDestLanguage()
-                    if 'lang' in SpeakCmd:
+                    elif 'lang' in SpeakCmd:
                         print(SpeakCmd)
                         chooseDestLanguage()
                 elif 'say' in SpeakCmd:
                     if 'dest'  in SpeakCmd:
                         print(SpeakCmd)
                         chooseDestLanguage()
-                    if 'lang' in SpeakCmd:
+                    elif 'lang' in SpeakCmd:
                         print(SpeakCmd)
                         chooseDestLanguage()
         except sr.UnknownValueError:
