@@ -12,7 +12,7 @@ from PIL import Image
 # import speech recognition for getting the desired destination language for users
 import speech_recognition as sr
 
-# import opencv for accessing camera, possibly, to detect corners of an image, then capture it
+# import opencv for accessing camera, image preprocessing
 # so that it's easier than to have pytesseract translate image to text with live video
 import cv2 as cv
 import numpy as np
@@ -21,7 +21,7 @@ import utlis
 # import pyautogui for key, mouse event controller automation
 import pyautogui
 
-# import time for prgramme sleep time
+# import time for programme sleep time
 import time
 
 # import GTTS for text-to-speech
@@ -29,19 +29,25 @@ import time
 from gtts import gTTS
 import os
 
+# import playsound
+from playsound import playsound
+
 # import google-cloud-translate
 from google.cloud import translate_v2 as translate
+
+# import wolframalpha for common knowledge
+import wolframalpha
 
 # import tkinter
 import tkinter as tk
 # print('Package Loaded')
 
 # specifying languages to be used for image-to-text analysis
-# vietnamese, english, korean, chinese simplified, french, african, finish, italian, japanese, hungarian, spanish
-langs_tesseract = 'vie+eng+kor+chi_sim+fra+afr+fin+ita+jpn+hun+spa'
+# vietnamese, english, korean, chinese simplified, french, african, finish, italian, japanese, hungarian, spanish, thai, russian, hindi, german
+langs_tesseract = 'vie+eng+kor+chi_sim+fra+afr+fin+ita+jpn+hun+spa+tha+rus+hin+deu'
 
 # specifying languages to be used for google engine (GTTS, Google Translate)
-langs_gg = 'vi+en+ko+zh+fr'
+langs_gg = 'vi|en|ko|zh|fr|fi|it|ja|hu|es|th|ru|hi|de'
 
 # Sample rate is how often values are recorded 
 sample_rate = 48000
@@ -68,16 +74,23 @@ def chooseDestLanguage():
     chooseDestL_label.pack()
     print("Speak Your Desired Destination Language")
 
+    # machine reply
+    path_to_audioFile_language_choosen = 'media/audio//response/after_lang_choosen.mp3'
+    playsound(path_to_audioFile_language_choosen)
+    
     with sr.Microphone(sample_rate = sample_rate,  
                         chunk_size = chunk_size) as source:
         r.pause_threshold = 1
-        r.adjust_for_ambient_noise(source, duration=1)
+        r.adjust_for_ambient_noise(source, duration=0.5)
         audio = r.listen(source)
         try:
             global destL
             destL = r.recognize_google(audio)
             # make the destination lang lower case as it'll be searched up on google translate
             destL = destL.lower()
+
+            # seletively eliminate unnecesarry words except for language names
+            # and encode them into language code that the translation engine can recognise
             if 'viet' in destL:
                 destL = 'vi'
                 print(destL)
@@ -108,6 +121,24 @@ def chooseDestLanguage():
             elif 'hun' in destL:
                 destL = 'hu'
                 print(destL)
+            elif 'afr' in destL:
+                destL = 'af'
+                print(destL)
+            elif 'fin' in destL:
+                destL = 'fi'
+                print(destL)
+            elif 'tha' in destL:
+                destL = 'th'
+                print(destL)
+            elif 'rus' in destL:
+                destL = 'ru'
+                print(destL)
+            elif 'hin' in destL:
+                destL = 'hi'
+                print(destL)
+            elif 'ger' in destL:
+                destL = 'de'
+                print(destL)
             else:
                 warning_label = tk.Label(root, text="Apparently, we don't know that language yet", bg='gray')
                 warning_label.pack()
@@ -130,6 +161,10 @@ path_for_img_detection = 'media/img/img_detection/myImage.png'
 
 # initialise the system workflow with live camera
 def init():
+    # play a response audio file
+    # machine reply
+    path_to_audioFile = 'media/audio/response/init_camera.mp3'
+    playsound(path_to_audioFile)
     try:
         while True:
             if webcamFeed:
@@ -183,8 +218,10 @@ def init():
 
             if cv.waitKey(1) & 0xFF == ord('s'):
                 saveLabel = tk.Label(root, text='A Frame Saved' + '\n' + 'You Now Have Two Options: Choose A Destination Language' 
-                                    + '\n' + 'or Ask Me To Perform Object Detection', bg='gray')
+                                    + '\n' + 'or Search Image On The Internet', bg='gray')
                 saveLabel.pack()
+                path_to_audioFile = 'media/audio/response/after_img_capturing.mp3'
+                
                 if biggest.size != 0:
                     cv.imwrite(path_to_imgFile, imgWarpColored)
                 else:
@@ -193,6 +230,9 @@ def init():
                 # to close the webcam/camera windows
                 # pyautogui.click(1360, 141, button='left')
                 pyautogui.keyDown('altleft'); pyautogui.press('f4'); pyautogui.keyUp('altleft')
+
+                # machine reply
+                playsound(path_to_audioFile)
                 break
             elif cv.waitKey(1) & 0xFF == ord('q'):
                 break
@@ -246,11 +286,14 @@ def listenOrg():
     # listenField = driver.find_element_by_xpath("//div[@class='src-tts left-positioned ttsbutton jfk-button-flat source-or-target-footer-button jfk-button']")
     # listenField.click()
     if result != None:
+        path_to_audioFile = 'media/audio/translated_text/input.mp3'
         sourceL = result['detectedSourceLanguage']
-        path_to_audioFile = 'media/audio/input.mp3'
         input = gTTS(text=keywords, lang=sourceL, slow=False)
         input.save(path_to_audioFile)
+        # playsound(path_to_audioFile)
         os.system(f'start {path_to_audioFile}')
+        time.sleep(5)
+        pyautogui.keyDown('altleft'); pyautogui.press('f4'); pyautogui.keyUp('altleft')
     else:
         print('You Need To Specify The Source Language First')
 
@@ -258,11 +301,14 @@ def listenTrans():
     # listenField = driver.find_element_by_xpath("//div[@class='res-tts ttsbutton-res left-positioned ttsbutton jfk-button-flat source-or-target-footer-button jfk-button']")
     # listenField.click()
     if result != None:
+        path_to_audioFile = 'media/audio/translated_text/output.mp3'
         translated_text = result['translatedText']
-        path_to_audioFile = 'media/audio/output.mp3'
         output = gTTS(text=translated_text, lang=destL, slow=False)
         output.save(path_to_audioFile)
+        # playsound(path_to_audioFile)
         os.system(f'start {path_to_audioFile}')
+        time.sleep(5)
+        pyautogui.keyDown('altleft'); pyautogui.press('f4'); pyautogui.keyUp('altleft')
     else:
         print('You Need To Specify The Source Language First')
 
@@ -277,6 +323,10 @@ def imageDetection():
     pyautogui.click(960, 640, button='right')
     pyautogui.typewrite(['down', 'down', 'down', 'down', 'down', 'enter'])
     
+    # machine reply
+    path_to_audioFile_for_img_search = 'media/audio/response/after_img_search.mp3'
+    playsound(path_to_audioFile_for_img_search)
+
     # wait for webpage buffering
     time.sleep(8)
     im = pyautogui.screenshot(region=(440, 429, 331, 42))
@@ -286,12 +336,15 @@ def imageDetection():
     chooseDestL_label = tk.Label(root, text="Now, Choose A Destination Language", bg='gray')
     chooseDestL_label.pack()
     # chooseDestLanguage()
+    # machine reply
+    path_to_audioFile_for_dest_lang = 'media/audio/response/choose_dest_lang.mp3'
+    playsound(path_to_audioFile_for_dest_lang)
 
 def speakCommand():
     with sr.Microphone(sample_rate = sample_rate,  
                     chunk_size = chunk_size) as source:
         r.pause_threshold = 1
-        r.adjust_for_ambient_noise(source, duration=1)
+        r.adjust_for_ambient_noise(source, duration=0.5)
         audio = r1.listen(source)
         try:
             SpeakCmd = r1.recognize_google(audio)
@@ -301,7 +354,6 @@ def speakCommand():
                     print(SpeakCmd)
                     global mode
                     mode = 1
-                    print(mode)
                     init()
                 elif 'video' in SpeakCmd:
                     print(SpeakCmd)
@@ -321,19 +373,22 @@ def speakCommand():
             if 'detect' in SpeakCmd:
                 mode = 2
                 imageDetection()
+            elif 'search' in SpeakCmd:
+                mode = 2
+                imageDetection()
             elif 'image' in SpeakCmd:
                 mode = 2
                 imageDetection()
             
-            if mode == 1:
-                # voice command to listen to the original text
-                if 'listen' in SpeakCmd:
-                    if 'source' in SpeakCmd:
-                        print(SpeakCmd)
-                        listenOrg()
-                    elif 'origin' in SpeakCmd:
-                        print(SpeakCmd)
-                        listenOrg()
+            # if mode == 1:
+            # voice command to listen to the original text
+            if 'listen' in SpeakCmd:
+                if 'source' in SpeakCmd:
+                    print(SpeakCmd)
+                    listenOrg()
+                elif 'origin' in SpeakCmd:
+                    print(SpeakCmd)
+                    listenOrg()
 
             # voice command to listen to the translated text
             if 'listen' in SpeakCmd:
@@ -347,29 +402,29 @@ def speakCommand():
                     print(SpeakCmd)
                     listenTrans()
             
-            if mode == 1 or mode == 2:
-                # voice command to choose a desired destination language
-                if 'choose' in SpeakCmd:
-                    if 'dest'  in SpeakCmd:
-                        print(SpeakCmd)
-                        chooseDestLanguage()
-                    elif 'lang' in SpeakCmd:
-                        print(SpeakCmd)
-                        chooseDestLanguage()
-                elif 'select' in SpeakCmd:
-                    if 'dest'  in SpeakCmd:
-                        print(SpeakCmd)
-                        chooseDestLanguage()
-                    elif 'lang' in SpeakCmd:
-                        print(SpeakCmd)
-                        chooseDestLanguage()
-                elif 'say' in SpeakCmd:
-                    if 'dest'  in SpeakCmd:
-                        print(SpeakCmd)
-                        chooseDestLanguage()
-                    elif 'lang' in SpeakCmd:
-                        print(SpeakCmd)
-                        chooseDestLanguage()
+            # if mode == 1 or mode == 2:
+            # voice command to choose a desired destination language
+            if 'choose' in SpeakCmd:
+                if 'dest'  in SpeakCmd:
+                    print(SpeakCmd)
+                    chooseDestLanguage()
+                elif 'lang' in SpeakCmd:
+                    print(SpeakCmd)
+                    chooseDestLanguage()
+            elif 'select' in SpeakCmd:
+                if 'dest'  in SpeakCmd:
+                    print(SpeakCmd)
+                    chooseDestLanguage()
+                elif 'lang' in SpeakCmd:
+                    print(SpeakCmd)
+                    chooseDestLanguage()
+            elif 'say' in SpeakCmd:
+                if 'dest'  in SpeakCmd:
+                    print(SpeakCmd)
+                    chooseDestLanguage()
+                elif 'lang' in SpeakCmd:
+                    print(SpeakCmd)
+                    chooseDestLanguage()
         except sr.UnknownValueError:
             print("Could not understand audio")
         except sr.RequestError as e:
