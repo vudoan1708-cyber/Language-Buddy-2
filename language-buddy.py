@@ -43,7 +43,12 @@ import wolframalpha
 
 # import tkinter
 import tkinter as tk
+
+# import random
 import random
+
+# import requests for requesting API calls from websites
+import requests
 
 # specifying languages to be used for image-to-text analysis
 # vietnamese, english, korean, chinese simplified, french, african, finish, italian, japanese, hungarian, spanish, thai, russian, hindi, german
@@ -73,6 +78,16 @@ root = tk.Tk()
 
 # keep track of each mode in the system workflow
 mode = 0
+
+# gmaps = googlemaps.Client(key=API_KEY)
+# now = datetime.now()
+# geocode = gmaps.geocode('Northend Avenue, Bristol')
+# directions_result = gmaps.directions("Northend Avenue, Bristol",
+#                                      "BS16 1QY",
+#                                      mode="transit",
+#                                      departure_time=now)
+# distance = directions_result['legs']
+# print(distance)
 
 def chooseDestLanguage():
     chooseDestL_label = tk.Label(root, text="Speak Your Desired Destination Language", bg='gray')
@@ -319,7 +334,7 @@ def listenTrans():
 
 def imageDetection():
     os.startfile('media\img\still_img_captured')
-    time.sleep(0.75)
+    time.sleep(1)
     # locate the img
     pyautogui.typewrite(['down', 'enter'])
     time.sleep(1)
@@ -354,10 +369,13 @@ def imageDetection():
     playsound(path_to_audioFile_for_dest_lang)
 
 def geolocate():
+    print('Hey')
     # provide api key for google maps access
-    API_KEY = 'AIzaSyDcjgYK5VK0QpJNG960wnfOOjXJUXYicac'
-    gmaps = googlemaps.Client(key=API_KEY)
+    API_KEY = ''
 
+    ##########################
+    # FIND PLACES
+    # listen to a speech
     # voice command for finding directions
     with sr.Microphone(sample_rate = sample_rate,  
                     chunk_size = chunk_size) as source:
@@ -365,13 +383,57 @@ def geolocate():
         r_maps.adjust_for_ambient_noise(source, duration=0.5)
         audio = r_maps.listen(source)
         try:
-            directions = r_maps.recognize_google(audio)
-            # if ''
-            print(directions)
+            speech = r_maps.recognize_google(audio)
+            now = datetime.now()
+            # split the string of a speech into an array
+            speech = speech.split(' ')
+
+            # create an empty array to store final words as indices
+            s = []
+
+            ##########################
+            # GEOLOCATIONS AND DIRECTIONS
+            ORIGIN = ''
+            DESTINATION = ''
+            MODE = ''
+
+            # iterate through the array, find keywords: from, to, by
+            for f in range(len(speech)):
+                # to store a positional argument at the word 'from'
+                if speech[f] == 'from':
+                    for b in range(len(speech)):
+                        # to store a positional argument at the word 'by'
+                        if speech[b] == 'by':
+                            # find a word after 'by'
+                            MODE = speech[b + 1]
+                            # find words in between these two words
+                            for p in range(f + 1, b):
+                                s.append(speech[p])
+            
+            # concatenate them and get rid of 'to'
+            newString = ' '.join(map(str, s)).split('to')
+            ORIGIN = newString[0]
+            DESTINATION = newString[1]
+
+            # call a places api with the origin in a scenario where users say 'here' as the origin
+            URL_PLACES = f'https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input={ORIGIN}&inputtype=textquery&fields=photos,formatted_address,name,rating,opening_hours,geometry&key={API_KEY}'
+            places = requests.get(URL_PLACES)
+            places = places.json()
+            ORIGIN = places['candidates'][0]['formatted_address']
+            # ORIGIN = URL_PLACES['candidates'][0]['formatted_address']
+            print(ORIGIN, DESTINATION, MODE)
         except sr.UnknownValueError:
             print("Could not understand audio")
         except sr.RequestError as e:
             print("Could not request results; {0}".format(e))
+
+    
+    # fetch the API from the endpoint
+    URL_GEOLOCATION = f'https://maps.googleapis.com/maps/api/directions/json?origin={ORIGIN}&avoid=highways&destination={DESTINATION}&mode={MODE}&key={API_KEY}'
+    r = requests.get(URL_GEOLOCATION)
+    # make the object into JSON
+    r = r.json()
+    # print(r['routes'][0]['legs'][0]['distance']['text'])
 
 
 def speakCommand():
@@ -405,17 +467,16 @@ def speakCommand():
             
             # voice command for object detection
             if 'detect' in SpeakCmd:
-                mode = 2
-                imageDetection()
+                if 'image' in SpeakCmd:
+                    mode = 2
+                    imageDetection()
             elif 'search' in SpeakCmd:
-                mode = 2
-                imageDetection()
-            elif 'image' in SpeakCmd:
-                mode = 2
-                imageDetection()
+                if 'image' in SpeakCmd:
+                    mode = 2
+                    imageDetection()
 
             # voice command for directions
-            if 'dir' in SpeakCmd:
+            if 'map' in SpeakCmd:
                 mode = 3
                 geolocate()
             elif 'find' in SpeakCmd:
@@ -430,7 +491,7 @@ def speakCommand():
                 elif 'origin' in SpeakCmd:
                     print(SpeakCmd)
                     listenOrg()
-
+            
             # voice command to listen to the translated text
             if 'listen' in SpeakCmd:
                 if 'dest'  in SpeakCmd:
@@ -509,11 +570,14 @@ canvas.place(relwidth=0.8, relheight=0.8, relx=0.1, rely=0.1)
 # webcamBtn = tk.Button(root, text='Open Live Webcam', padx=20, pady=10, fg='white', bg='black', command=liveVideoCapture)
 # webcamBtn.pack()
 
-greetingsBtn = tk.Button(root, text='Greet Aurora', padx=20, pady=10, fg='white', bg='red', command=greeting)
+greetingsBtn = tk.Button(root, text='Command Aurora', padx=20, pady=10, fg='white', bg='red', command=greeting)
 greetingsBtn.pack()
 
 speakBtn = tk.Button(root, text='Speak Command', padx=20, pady=10, fg='white', bg='black', command=speakCommand)
 speakBtn.pack()
+
+mapsBtn = tk.Button(root, text='Maps', padx=20, pady=10, fg='white', bg='black', command=geolocate)
+mapsBtn.pack()
 
 chooseDestLBtn = tk.Button(root, text='Speak a Desired Destination Language', padx=20, pady=10, fg='white', bg='black', command=chooseDestLanguage)
 chooseDestLBtn.pack()
